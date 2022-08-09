@@ -85,7 +85,7 @@ pub const TokenIterator = struct {
     }
 };
 
-pub fn tokenize(buffer: []const u8) TokenIterator() {
+pub fn tokenize(buffer: []const u8) TokenIterator {
     return .{
         .index = 0,
         .buffer = buffer,

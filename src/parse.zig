@@ -110,13 +110,23 @@ test "parse.parse" {
     try expect(node.*.List[1].*.Number == 2.0);
 }
 
-test "parse.parseAll Errors on too many parentheses" {
+test "parse.parse Deeply nested parse" {
+    var tokens = tokenize("(+ (- 5 (* 12 7) ) 3)");
+    const node = try parse(&tokens);
+    defer node.deinit();
+    try expect(node.* == Node.List);
+    try expect(node.*.List[0].* == Node.Symbol);
+    try expect(std.mem.eql(u8, node.*.List[0].*.Symbol, "+"));
+    try expect(node.*.List[1].*.List[2].*.List[1].*.Number == 12);
+}
+
+test "parse.parse Errors on too many parentheses" {
     var tokens = tokenize("(+ 1 2 ))");
     const node = parse(&tokens);
     try expectError(ParseError.UnexpectedClosingParenthesis, node);
 }
 
-test "parse.parseAll Errors on too few parentheses" {
+test "parse.parse Errors on too few parentheses" {
     var tokens = tokenize("(= 2 3");
     const node = parse(&tokens);
     try expectError(ParseError.NoClosingParenthesis, node);

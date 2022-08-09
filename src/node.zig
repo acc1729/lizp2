@@ -8,7 +8,7 @@ pub const Node = union(enum) {
     Bool: bool,
     Number: f64,
     Symbol: []const u8,
-    List: []const *LizpExp,
+    List: []const *Self,
 
     const Self = @This();
 
@@ -35,14 +35,15 @@ pub const Node = union(enum) {
         }
     }
 
-    pub fn deinit(self: Self) void {
-        switch (self) {
+    pub fn deinit(self: *Self) void {
+        switch (self.*) {
             .Symbol => |symbol| alloc.free(symbol),
             .List => |list| {
                 for (list) |elem| {
                     elem.deinit();
                 }
             },
+            else => {},
         }
         alloc.destroy(self);
     }

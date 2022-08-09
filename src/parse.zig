@@ -12,8 +12,8 @@ pub const ParseError = error{
     NoClosingParenthesis,
 } || std.mem.Allocator.Error;
 
-pub fn parseAll(tokens: *TokenIterator) ParseError!*Node {
-    const node: *Node = try parse(tokens);
+pub fn parse(tokens: *TokenIterator) ParseError!*Node {
+    const node: *Node = try parseAll(tokens);
     errdefer node.deinit();
     if (tokens.peek() != null) {
         return ParseError.UnexpectedClosingParenthesis;
@@ -21,7 +21,7 @@ pub fn parseAll(tokens: *TokenIterator) ParseError!*Node {
     return node;
 }
 
-pub fn parse(tokens: *TokenIterator) ParseError!*Node {
+fn parseAll(tokens: *TokenIterator) ParseError!*Node {
     var token = tokens.next().?;
     if (std.mem.eql(u8, token.src, "(")) {
         return parseList(tokens);
@@ -49,7 +49,7 @@ fn parseList(tokens: *TokenIterator) ParseError!*Node {
             list_node.* = Node{ .List = list.toOwnedSlice() };
             return list_node;
         }
-        next_node = try parse(tokens);
+        next_node = try parseAll(tokens);
         try list.append(next_node);
     }
     // If we run out of tokens, we didn't have a terminal parenthesis,
@@ -112,12 +112,12 @@ test "parse.parse" {
 
 test "parse.parseAll Errors on too many parentheses" {
     var tokens = tokenize("(+ 1 2 ))");
-    const node = parseAll(&tokens);
+    const node = parse(&tokens);
     try expectError(ParseError.UnexpectedClosingParenthesis, node);
 }
 
 test "parse.parseAll Errors on too few parentheses" {
     var tokens = tokenize("(= 2 3");
-    const node = parseAll(&tokens);
+    const node = parse(&tokens);
     try expectError(ParseError.NoClosingParenthesis, node);
 }

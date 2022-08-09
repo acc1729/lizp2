@@ -42,6 +42,7 @@ pub const Node = union(enum) {
                 for (list) |elem| {
                     elem.deinit();
                 }
+                alloc.free(list);
             },
             else => {},
         }

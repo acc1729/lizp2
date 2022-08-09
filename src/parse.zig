@@ -1,5 +1,6 @@
 const std = @import("std");
 const expect = std.testing.expect;
+const expectError = std.testing.expectError;
 const alloc = @import("main.zig").alloc;
 
 const Node = @import("node.zig").Node;
@@ -11,16 +12,19 @@ pub const ParseError = error{
     NoClosingParenthesis,
 } || std.mem.Allocator.Error;
 
-pub fn parse(tokens: *TokenIterator) ParseError!*Node {
-    var tokens_mut = tokens;
-    var token = tokens_mut.next().?;
-    if (std.mem.eql(u8, token.src, "(")) {
-        return parseRest(tokens_mut);
-    } else if (std.mem.eql(u8, token.src, ")")) {
-        // parseRest is supposed to consume up until the matching )
-        // So if we get an extra one, something went wrong. Error.
-        std.debug.print("\nSo why are we here? {s}", .{token.src});
+pub fn parseAll(tokens: *TokenIterator) ParseError!*Node {
+    const node: *Node = try parse(tokens);
+    errdefer node.deinit();
+    if (tokens.peek() != null) {
         return ParseError.UnexpectedClosingParenthesis;
+    }
+    return node;
+}
+
+pub fn parse(tokens: *TokenIterator) ParseError!*Node {
+    var token = tokens.next().?;
+    if (std.mem.eql(u8, token.src, "(")) {
+        return parseList(tokens);
     } else {
         return parseAtom(token);
     }
@@ -28,8 +32,7 @@ pub fn parse(tokens: *TokenIterator) ParseError!*Node {
 
 /// Parses everything up to the next ')', and then returns a Node.List
 /// with the parsed list.
-fn parseRest(tokens: *TokenIterator) ParseError!*Node {
-    var tokens_mut = tokens;
+fn parseList(tokens: *TokenIterator) ParseError!*Node {
     var list_node = try alloc.create(Node);
     var list = std.ArrayList(*Node).init(alloc);
     errdefer {
@@ -40,14 +43,13 @@ fn parseRest(tokens: *TokenIterator) ParseError!*Node {
         alloc.destroy(list_node);
     }
     var next_node: *Node = undefined;
-    while (tokens_mut.peek()) |token| {
+    while (tokens.peek()) |token| {
         if (std.mem.eql(u8, token.src, ")")) {
-            _ = tokens_mut.next(); // Consume the parenthesis token.
+            _ = tokens.next(); // Consume the parenthesis token.
             list_node.* = Node{ .List = list.toOwnedSlice() };
             return list_node;
         }
-        next_node = try parse(tokens_mut);
-        errdefer next_node.deinit();
+        next_node = try parse(tokens);
         try list.append(next_node);
     }
     // If we run out of tokens, we didn't have a terminal parenthesis,
@@ -61,6 +63,7 @@ fn parseRest(tokens: *TokenIterator) ParseError!*Node {
 /// 3. A symbol.
 fn parseAtom(atom: Token) !*Node {
     var node: *Node = try alloc.create(Node);
+    errdefer alloc.destroy(node);
     if (std.mem.eql(u8, atom.src, "true")) {
         node.* = Node{ .Bool = true };
     } else if (std.mem.eql(u8, atom.src, "false")) {
@@ -105,4 +108,16 @@ test "parse.parse" {
     try expect(std.mem.eql(u8, node.*.List[0].*.Symbol, "+"));
     try expect(node.*.List[1].* == Node.Number);
     try expect(node.*.List[1].*.Number == 2.0);
+}
+
+test "parse.parseAll Errors on too many parentheses" {
+    var tokens = tokenize("(+ 1 2 ))");
+    const node = parseAll(&tokens);
+    try expectError(ParseError.UnexpectedClosingParenthesis, node);
+}
+
+test "parse.parseAll Errors on too few parentheses" {
+    var tokens = tokenize("(= 2 3");
+    const node = parseAll(&tokens);
+    try expectError(ParseError.NoClosingParenthesis, node);
 }

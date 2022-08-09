@@ -24,9 +24,9 @@ pub const Node = union(enum) {
             .Number => |Number| try writer.print("{d}", .{Number}),
             .List => |List| {
                 try writer.writeByte('(');
-                for (List) |exp| {
+                for (List) |exp, i| {
                     try exp.format(fmt, options, writer);
-                    try writer.writeByte(' ');
+                    if (i < List.len - 1) try writer.writeByte(' ');
                 }
                 try writer.writeByte(')');
             },
